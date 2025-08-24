@@ -1,0 +1,14 @@
+﻿services:
+  user-validator:
+    build: .
+    image: bsdflow/user-validator:dev
+    container_name: bsdflow_user_validator
+    environment:
+      BOOTSTRAP_SERVERS: "placeholder:9092"
+      GROUP_ID: "bsdflow.users.validator"
+      INPUT_TOPIC: "users.intake"
+      VALID_TOPIC: "users.valid"
+      ERROR_TOPIC: "users.errors"
+      ENABLE_AUTO_COMMIT: "false"
+      AUTO_OFFSET_RESET: "earliest"
+    restart: unless-stopped
