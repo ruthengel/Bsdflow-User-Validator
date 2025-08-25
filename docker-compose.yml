@@ -1,33 +1,46 @@
-﻿# services:
-#   user-validator:
-#     build: .
-#     image: bsdflow/user-validator:dev
-#     container_name: bsdflow_user_validator
-#     environment:
-#       BOOTSTRAP_SERVERS: "placeholder:9092"
-#       GROUP_ID: "bsdflow.users.validator"
-#       INPUT_TOPIC: "users.intake"
-#       VALID_TOPIC: "users.valid"
-#       ERROR_TOPIC: "users.errors"
-#       ENABLE_AUTO_COMMIT: "false"
-#       AUTO_OFFSET_RESET: "earliest"
-#     restart: unless-stopped
-
+﻿
 services:
+  kafka:
+    image: bitnami/kafka:3.7
+    container_name: dev_kafka
+    environment:
+      - KAFKA_ENABLE_KRAFT=yes
+      - KAFKA_CFG_NODE_ID=1
+      - KAFKA_CFG_PROCESS_ROLES=broker,controller
+      - KAFKA_CFG_CONTROLLER_QUORUM_VOTERS=1@dev_kafka:9093
+      - KAFKA_CFG_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9093
+      - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://dev_kafka:9092
+      - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      - KAFKA_CFG_CONTROLLER_LISTENER_NAMES=CONTROLLER
+      - KAFKA_CFG_INTER_BROKER_LISTENER_NAME=PLAINTEXT
+      - KAFKA_CFG_OFFSETS_TOPIC_REPLICATION_FACTOR=1
+      - KAFKA_CFG_TRANSACTION_STATE_LOG_REPLICATION_FACTOR=1
+      - KAFKA_CFG_TRANSACTION_STATE_LOG_MIN_ISR=1
+    ports:
+      - "9092:9092"
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list >/dev/null 2>&1 || exit 1"]
+      interval: 5s
+      timeout: 5s
+      start_period: 20s
+      retries: 30
+
   user-validator:
     build:
-      context: .                              
+      context: .
       dockerfile: Bsdflow.UserValidator/Dockerfile
-    image: bsdflow/user-validator:dev
     container_name: bsdflow_user_validator
+    depends_on:
+      kafka:
+        condition: service_healthy
     environment:
-      DOTNET_ENVIRONMENT: "Development"
-      Logging__LogLevel__Default: "Debug"
-      BOOTSTRAP_SERVERS: "placeholder:9092"
+      BOOTSTRAP_SERVERS: "dev_kafka:9092" 
       GROUP_ID: "bsdflow.users.validator"
       INPUT_TOPIC: "users.intake"
       VALID_TOPIC: "users.valid"
       ERROR_TOPIC: "users.errors"
       ENABLE_AUTO_COMMIT: "false"
       AUTO_OFFSET_RESET: "earliest"
+      DOTNET_ENVIRONMENT: "Development"
+      Logging__LogLevel__Default: "Debug"
     restart: unless-stopped

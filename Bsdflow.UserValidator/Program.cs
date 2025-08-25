@@ -1,38 +1,26 @@
-//using Bsdflow.UserValidator;
-
-//var builder = Host.CreateApplicationBuilder(args);
-//builder.Services.AddHostedService<Worker>();
-
-//var host = builder.Build();
-//host.Run();
-
 using Bsdflow.UserValidator;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
+using Bsdflow.UserValidator.Messaging;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
-var host = Host.CreateDefaultBuilder(args)
-    .ConfigureAppConfiguration((ctx, cfg) =>
-    {
-        cfg.AddEnvironmentVariables(); 
-    })
-    .ConfigureLogging(logging =>
-    {
-        logging.ClearProviders();
-        logging.AddSimpleConsole(o =>
-        {
-            o.TimestampFormat = "HH:mm:ss ";
-            o.SingleLine = true;
-        });
-    })
-    .ConfigureServices((ctx, services) =>
-    {
-        var kafka = KafkaOptions.Load(ctx.Configuration);
-        services.AddSingleton(kafka);
-        services.AddHostedService<Worker>(); 
-    })
-    .Build();
+var builder = Host.CreateApplicationBuilder(args);
 
-await host.RunAsync();
+builder.Configuration.AddEnvironmentVariables();
+
+builder.Services.AddSingleton(KafkaOptions.Load(builder.Configuration));
+builder.Services.AddSingleton<IKafkaPublisher, KafkaPublisher>();
+builder.Services.AddSingleton<IKafkaConsumer, KafkaConsumer>();
+builder.Services.AddHostedService<Worker>();
+
+builder.Logging.ClearProviders();
+builder.Logging.AddSimpleConsole(o =>
+{
+    o.TimestampFormat = "HH:mm:ss ";
+    o.SingleLine = true;
+});
+
+var app = builder.Build();
+await app.RunAsync();
+
+
 
