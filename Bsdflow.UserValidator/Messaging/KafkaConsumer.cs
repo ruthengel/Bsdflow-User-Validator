@@ -44,7 +44,7 @@ public class KafkaConsumer : IKafkaConsumer, IDisposable
             {
                 try
                 {
-                    var cr = _consumer.Consume(ct); // blocking
+                    var cr = _consumer.Consume(ct); 
                     if (cr == null || cr.IsPartitionEOF) continue;
 
                     var headers = cr.Message.Headers;
@@ -66,6 +66,8 @@ public class KafkaConsumer : IKafkaConsumer, IDisposable
                         Partition: cr.Partition.Value,
                         Offset: cr.Offset.Value
                     );
+
+                  
 
                     var result = await handler(env, ct);
                     _consumer.Commit(cr);
