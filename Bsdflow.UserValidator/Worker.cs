@@ -47,102 +47,78 @@ public class Worker : BackgroundService
         await _consumer.RunAsync(_opts.InputTopic!, HandlerAsync, stoppingToken);
     }
 
-    private async Task<ProcessingResult> HandlerAsync(KafkaEnvelope env, CancellationToken ct)
+    public override async Task StopAsync(CancellationToken cancellationToken)
     {
-        var sw = System.Diagnostics.Stopwatch.StartNew();
-
+        _log.LogInformation("Stopping service - draining...");
         try
         {
-            var input = JsonSerializer.Deserialize<UserInput>(env.Value, _jsonOptions)
-                        ?? new UserInput(null, null, null, null);
-
-            var result = _validator.Validate(input);
-
-            if (result.IsValid && result.User is not null)
-            {
-                var payload = new
-                {
-                    messageId = env.MessageId,
-                    correlationId = env.CorrelationId,
-                    user = result.User
-                };
-
-                var outputJson = JsonSerializer.Serialize(payload, _jsonOptions);
-
-                await _publisher.PublishAsync(
-                    _opts.ValidTopic!, env.Key, outputJson,
-                    env.MessageId, env.CorrelationId, ct);
-
-                _log.LogInformation(
-                    "Processed OK | msgId={MsgId} durationMs={Ms}",
-                    env.MessageId, sw.ElapsedMilliseconds);
-
-                return new ProcessingResult(
-                    IsValid: true, OutputJson: outputJson, OutputKey: env.Key);
-            }
-            else
-            {
-                var errorPayload = new
-                {
-                    messageId = env.MessageId,
-                    correlationId = env.CorrelationId,
-                    reason = "validation_failed",
-                    errors = result.Errors,  
-                    original = input      
-                };
-
-                var errorJson = JsonSerializer.Serialize(errorPayload, _jsonOptions);
-
-                await _publisher.PublishAsync(
-                    _opts.ErrorTopic!, env.Key, errorJson,
-                    env.MessageId, env.CorrelationId, ct);
-
-                _log.LogWarning(
-                    "Processed ERROR (validation) | msgId={MsgId} errors={Count} durationMs={Ms}",
-                    env.MessageId, result.Errors.Count, sw.ElapsedMilliseconds);
-
-                return new ProcessingResult(
-                    IsValid: false, OutputJson: errorJson, OutputKey: env.Key);
-            }
+            await _publisher.FlushAsync(TimeSpan.FromSeconds(5));
         }
-        catch (JsonException jx)
+        catch (Exception ex)
         {
-            var errorPayload = JsonSerializer.Serialize(new
-            {
-                messageId = env.MessageId,
-                correlationId = env.CorrelationId,
-                reason = "invalid_json",
-                details = jx.Message,
-                original = env.Value
-            }, _jsonOptions);
-
-            await _publisher.PublishAsync(
-                _opts.ErrorTopic!, env.Key, errorPayload,
-                env.MessageId, env.CorrelationId, ct);
-
-            _log.LogWarning(
-                "Processed ERROR (invalid json) | msgId={MsgId} durationMs={Ms}",
-                env.MessageId, sw.ElapsedMilliseconds);
-
-            return new ProcessingResult(
-                IsValid: false, OutputJson: errorPayload, OutputKey: env.Key);
+            _log.LogWarning(ex, "Flush failed on shutdown");
         }
+        await base.StopAsync(cancellationToken);
     }
+
 
     //private async Task<ProcessingResult> HandlerAsync(KafkaEnvelope env, CancellationToken ct)
     //{
     //    var sw = System.Diagnostics.Stopwatch.StartNew();
+
     //    try
     //    {
-    //        using var doc = JsonDocument.Parse(env.Value); 
+    //        var input = JsonSerializer.Deserialize<UserInput>(env.Value, _jsonOptions)
+    //                    ?? new UserInput(null, null, null, null);
 
-    //        var outputJson = env.Value;
+    //        var result = _validator.Validate(input);
 
-    //        await _publisher.PublishAsync(_opts.ValidTopic!, env.Key, outputJson,
-    //                                      env.MessageId, env.CorrelationId, ct);
+    //        if (result.IsValid && result.User is not null)
+    //        {
+    //            var payload = new
+    //            {
+    //                messageId = env.MessageId,
+    //                correlationId = env.CorrelationId,
+    //                user = result.User
+    //            };
 
-    //        _log.LogInformation("Processed OK | msgId={MsgId} durationMs={Ms}", env.MessageId, sw.ElapsedMilliseconds);
-    //        return new ProcessingResult(IsValid: true, OutputJson: outputJson, OutputKey: env.Key);
+    //            var outputJson = JsonSerializer.Serialize(payload, _jsonOptions);
+
+    //            await _publisher.PublishAsync(
+    //                _opts.ValidTopic!, env.Key, outputJson,
+    //                env.MessageId, env.CorrelationId, ct);
+
+    //            _log.LogInformation(
+    //                "Processed OK | msgId={MsgId} durationMs={Ms}",
+    //                env.MessageId, sw.ElapsedMilliseconds);
+
+    //            return new ProcessingResult(
+    //                IsValid: true, OutputJson: outputJson, OutputKey: env.Key);
+    //        }
+    //        else
+    //        {
+    //            var errorPayload = new
+    //            {
+    //                messageId = env.MessageId,
+    //                correlationId = env.CorrelationId,
+    //                reason = "validation_failed",
+    //                errors = result.Errors,  
+    //                original = input      
+    //            };
+
+    //            var errorJson = JsonSerializer.Serialize(errorPayload, _jsonOptions);
+
+    //            await _publisher.PublishAsync(
+    //                _opts.ErrorTopic!, env.Key, errorJson,
+    //                env.MessageId, env.CorrelationId, ct);
+
+    //            _log.LogWarning(
+    //                "Processed ERROR (validation) | msgId={MsgId} errors={Count} durationMs={Ms}",
+    //                env.MessageId, result.Errors.Count, sw.ElapsedMilliseconds);
+
+    //            return new ProcessingResult(
+    //                IsValid: false, OutputJson: errorJson, OutputKey: env.Key);
+    //        }
     //    }
     //    catch (JsonException jx)
     //    {
@@ -153,13 +129,105 @@ public class Worker : BackgroundService
     //            reason = "invalid_json",
     //            details = jx.Message,
     //            original = env.Value
-    //        });
+    //        }, _jsonOptions);
 
-    //        await _publisher.PublishAsync(_opts.ErrorTopic!, env.Key, errorPayload,
-    //                                      env.MessageId, env.CorrelationId, ct);
+    //        await _publisher.PublishAsync(
+    //            _opts.ErrorTopic!, env.Key, errorPayload,
+    //            env.MessageId, env.CorrelationId, ct);
 
-    //        _log.LogWarning("Processed ERROR (invalid json) | msgId={MsgId} durationMs={Ms}", env.MessageId, sw.ElapsedMilliseconds);
-    //        return new ProcessingResult(IsValid: false, OutputJson: errorPayload, OutputKey: env.Key);
+    //        _log.LogWarning(
+    //            "Processed ERROR (invalid json) | msgId={MsgId} durationMs={Ms}",
+    //            env.MessageId, sw.ElapsedMilliseconds);
+
+    //        return new ProcessingResult(
+    //            IsValid: false, OutputJson: errorPayload, OutputKey: env.Key);
     //    }
     //}
+
+
+    private async Task<ProcessingResult> HandlerAsync(KafkaEnvelope env, CancellationToken ct)
+    {
+        using var _ = _log.BeginScope(new Dictionary<string, object?>
+        {
+            ["msgId"] = env.MessageId,
+            ["corrId"] = env.CorrelationId,
+            ["topicIn"] = env.Topic,
+            ["partition"] = env.Partition,
+            ["offset"] = env.Offset
+        });
+
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        try
+        {
+            var input = JsonSerializer.Deserialize<UserInput>(env.Value, _jsonOptions)
+                        ?? new UserInput(null, null, null, null);
+
+            _log.LogDebug("Parsed JSON to UserInput");
+
+            var result = _validator.Validate(input);
+            _log.LogInformation("Validation done | isValid={IsValid} errors={ErrCount}",
+                                result.IsValid, result.Errors.Count);
+
+            if (result.IsValid)
+            {
+                var payload = JsonSerializer.Serialize(new
+                {
+                    messageId = env.MessageId,
+                    correlationId = env.CorrelationId,
+                    user = result.User
+                });
+
+                await _publisher.PublishAsync(_opts.ValidTopic!, env.Key, payload,
+                                              env.MessageId, env.CorrelationId, ct);
+
+                _log.LogInformation("Published to {Topic} | durationMs={Ms}",
+                                    _opts.ValidTopic, sw.ElapsedMilliseconds);
+
+                return new ProcessingResult(true, payload, env.Key);
+            }
+            else
+            {
+                var payload = JsonSerializer.Serialize(new
+                {
+                    messageId = env.MessageId,
+                    correlationId = env.CorrelationId,
+                    errors = result.Errors,
+                    original = input
+                });
+
+                await _publisher.PublishAsync(_opts.ErrorTopic!, env.Key, payload,
+                                              env.MessageId, env.CorrelationId, ct);
+
+                _log.LogWarning("Published to {Topic} (INVALID) | errors={ErrCount} durationMs={Ms}",
+                                _opts.ErrorTopic, result.Errors.Count, sw.ElapsedMilliseconds);
+
+                return new ProcessingResult(false, payload, env.Key);
+            }
+        }
+        catch (JsonException jx)
+        {
+            var payload = JsonSerializer.Serialize(new
+            {
+                messageId = env.MessageId,
+                correlationId = env.CorrelationId,
+                reason = "invalid_json",
+                details = jx.Message,
+                original = env.Value
+            });
+
+            await _publisher.PublishAsync(_opts.ErrorTopic!, env.Key, payload,
+                                          env.MessageId, env.CorrelationId, ct);
+
+            _log.LogWarning(jx, "JSON parse failed | durationMs={Ms}", sw.ElapsedMilliseconds);
+            return new ProcessingResult(false, payload, env.Key);
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Unexpected failure | durationMs={Ms}", sw.ElapsedMilliseconds);
+            throw; 
+        }
+    }
+
+
+
 }

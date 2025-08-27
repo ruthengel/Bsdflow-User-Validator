@@ -10,8 +10,11 @@ public static class IsraeliIdRule
         normalized = "";
         if (string.IsNullOrWhiteSpace(raw)) return false;
 
+        if (raw.Any(c => !(char.IsDigit(c) || c == ' ' || c == '-')))
+            return false;
+
         var digits = new string(raw.Where(char.IsDigit).ToArray());
-        if (digits.Length > 9) return false;
+        if (digits.Length == 0 || digits.Length > 9) return false;
 
         digits = digits.PadLeft(9, '0');
 

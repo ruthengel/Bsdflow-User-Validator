@@ -46,6 +46,7 @@ services:
       kafka:
         condition: service_healthy
     environment:
+      ASPNETCORE_URLS: "http://+:8088"
       BOOTSTRAP_SERVERS: "dev_kafka:9092" 
       GROUP_ID: "bsdflow.users.validator"
       INPUT_TOPIC: "users.intake"
@@ -55,4 +56,10 @@ services:
       AUTO_OFFSET_RESET: "earliest"
       DOTNET_ENVIRONMENT: "Development"
       Logging__LogLevel__Default: "Debug"
+      Logging__Console__FormatterName: "json"
+      Logging__Console__FormatterOptions__IncludeScopes: "true"
+      # Logging__LogLevel__Default: "Information"
+    ports:
+     - "8088:8088"
     restart: unless-stopped
+

@@ -39,5 +39,11 @@ public class KafkaPublisher : IKafkaPublisher, IDisposable
             dr.Topic, key, dr.Partition.Value, dr.Offset.Value);
     }
 
+    public Task FlushAsync(TimeSpan timeout)
+    {
+        _producer.Flush(timeout);
+        return Task.CompletedTask;
+    }
+
     public void Dispose() => _producer.Flush(TimeSpan.FromSeconds(5));
 }

@@ -8,6 +8,8 @@ public interface IKafkaPublisher
     Task PublishAsync(string topic, string? key, string value,
                       string messageId, string correlationId,
                       CancellationToken ct);
+
+    Task FlushAsync(TimeSpan timeout);
 }
 
 public interface IKafkaConsumer
