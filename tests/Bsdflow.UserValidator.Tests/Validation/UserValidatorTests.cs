@@ -40,10 +40,10 @@ public class UserValidatorTests
     public void Validate_InvalidAllFields_ReturnsErrors()
     {
         var input = new UserInput(
-            IdNumber: "123456780", // checksum שגוי
+            IdNumber: "123456780",
             Email: "bademail",
             Phone: "1234",
-            BirthYear: DateTime.UtcNow.Year - 10, // צעיר מדי
+            BirthYear: DateTime.UtcNow.Year - 10, 
             FirstName: null,
             LastName: null
         );
